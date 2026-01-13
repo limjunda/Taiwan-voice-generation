@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taiwan Voice Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="app">
+        <aside class="sidebar">
+            <h2>📜 History</h2>
+            <button id="new-session" class="btn-new">+ New Session</button>
+            <div id="session-list" class="session-list"></div>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <h1>🎙️ Taiwan Voice Generator</h1>
+                <div id="api-status" class="api-status">Checking...</div>
+            </header>
+
+            <section class="settings">
+                <label>Model:</label>
+                <select id="model-select">
+                    <option value="gemini-2.5-flash-preview-tts">gemini-2.5-flash-preview-tts (Fast)</option>
+                    <option value="gemini-2.5-pro-preview-tts">gemini-2.5-pro-preview-tts (Quality)</option>
+                </select>
+            </section>
+
+            <section class="voices">
+                <h2>Voice Selection</h2>
+                <div class="filter-bar">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="Bright">Bright</button>
+                    <button class="filter-btn" data-filter="Firm">Firm</button>
+                    <button class="filter-btn" data-filter="Warm">Warm</button>
+                    <button class="filter-btn" data-filter="Upbeat">Upbeat</button>
+                    <button class="filter-btn" data-filter="Smooth">Smooth</button>
+                </div>
+                <div id="voice-grid" class="voice-grid"></div>
+            </section>
+
+
+            <section class="personas">
+                <div class="section-header">
+                    <h2>Persona</h2>
+                    <button id="add-persona-btn" class="btn-small" title="Add Custom Persona">+ Add Custom</button>
+                </div>
+                <div id="persona-grid" class="persona-grid"></div>
+                <div id="persona-info" class="persona-info"></div>
+            </section>
+
+            <!-- Custom Persona Modal -->
+            <div id="persona-modal" class="modal" style="display:none">
+                <div class="modal-content">
+                    <h2 id="modal-title">Add Custom Persona</h2>
+                    <div class="form-group">
+                        <label>Name:</label>
+                        <input type="text" id="custom-name" placeholder="e.g., Friendly Agent">
+                    </div>
+                    <div class="form-group">
+                        <label>Local Name (台灣):</label>
+                        <input type="text" id="custom-local-name" placeholder="e.g., 親切服務員">
+                    </div>
+                    <div class="form-group">
+                        <label>Tone Instructions:</label>
+                        <textarea id="custom-tone" rows="3"
+                            placeholder="e.g., Warm and friendly tone. Speak naturally with gentle emphasis."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Recommended Voice:</label>
+                        <select id="custom-voice"></select>
+                    </div>
+                    <div class="modal-actions">
+                        <button id="save-persona-btn" class="btn-primary">Save Persona</button>
+                        <button id="cancel-persona-btn" class="btn-secondary">Cancel</button>
+                        <button id="delete-persona-btn" class="btn-danger" style="display:none">Delete</button>
+                    </div>
+                </div>
+            </div>
+
+            <section class="text-input">
+                <h2>Text Input</h2>
+                <div class="tabs">
+                    <button class="tab active" data-tab="demo">Insurance Demo</button>
+                    <button class="tab" data-tab="phrases">Test Phrases</button>
+                    <button class="tab" data-tab="custom">Custom</button>
+                </div>
+                <textarea id="text-content" rows="4"></textarea>
+            </section>
+
+            <section class="actions">
+                <button id="generate-btn" class="btn-primary">▶ Generate Selected</button>
+                <button id="batch-btn" class="btn-secondary">🔄 Batch All 30 Voices</button>
+                <div id="progress" class="progress" style="display:none">
+                    <div id="progress-bar" class="progress-bar"></div>
+                    <span id="progress-text">0/30</span>
+                </div>
+            </section>
+
+            <section class="results">
+                <h2>Generated Audio</h2>
+
+                <!-- Audio Player -->
+                <div id="audio-player" class="audio-player" style="display:none">
+                    <div class="player-info">
+                        <span id="player-voice">-</span>
+                        <span id="player-persona">-</span>
+                    </div>
+                    <div class="player-controls">
+                        <button id="play-pause-btn" onclick="togglePlayPause()">▶</button>
+                        <input type="range" id="audio-slider" min="0" max="100" value="0">
+                        <span id="audio-time">0:00 / 0:00</span>
+                    </div>
+                </div>
+
+                <table id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Voice</th>
+                            <th>Persona</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <!-- Metadata Panel -->
+            <section id="metadata-panel" class="metadata-panel" style="display:none">
+                <h2>📋 Audio Metadata</h2>
+                <div class="metadata-content">
+                    <pre id="metadata-text"></pre>
+                </div>
+                <button onclick="closeMetadata()" class="btn-secondary">Close</button>
+            </section>
+
+            <section class="export">
+                <h2>Export for Gemini Live</h2>
+                <pre id="export-config">{}</pre>
+                <button id="copy-config" class="btn-secondary">📋 Copy Config</button>
+            </section>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+
+</html>

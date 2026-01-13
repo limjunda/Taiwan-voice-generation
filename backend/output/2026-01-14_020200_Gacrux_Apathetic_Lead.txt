@@ -1,0 +1,9 @@
+voice: Gacrux
+persona: Apathetic Lead
+model: gemini-2.5-flash-preview-tts
+text: 您好，請問是王先生嗎？
+抱歉打擾您，請問現在方便說話嗎？
+好的，那我改天再跟您聯繫。
+謝謝您的時間，祝您有美好的一天。
+generated_at: 2026-01-14_020200
+tone_instructions: Monotone, bored, low energy. Sounds tired. Long pauses between words.
