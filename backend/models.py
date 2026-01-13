@@ -10,14 +10,17 @@ class GenerateRequest(BaseModel):
     voice: str
     text: str
     persona_id: Optional[str] = None
-    tone_instructions: Optional[str] = None  # For custom personas or overrides
     model: GeminiModel = GeminiModel.FLASH
 
-# ... GenerateResponse stays same ...
+class GenerateResponse(BaseModel):
+    success: bool
+    file_path: Optional[str] = None
+    metadata_path: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    error: Optional[str] = None
 
 class BatchRequest(BaseModel):
     voices: List[str]
     text: str
     persona_id: Optional[str] = None
-    tone_instructions: Optional[str] = None
     model: GeminiModel = GeminiModel.FLASH

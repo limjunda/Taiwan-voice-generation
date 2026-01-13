@@ -25,8 +25,8 @@
             <section class="settings">
                 <label>Model:</label>
                 <select id="model-select">
-                    <option value="gemini-2.5-flash-preview-tts">gemini-2.5-flash-preview-tts (Fast)</option>
-                    <option value="gemini-2.5-pro-preview-tts">gemini-2.5-pro-preview-tts (Quality)</option>
+                    <option value="gemini-2.5-flash-preview-tts">Flash TTS (Fast)</option>
+                    <option value="gemini-2.5-pro-preview-tts">Pro TTS (Quality)</option>
                 </select>
             </section>
 
@@ -43,44 +43,11 @@
                 <div id="voice-grid" class="voice-grid"></div>
             </section>
 
-
             <section class="personas">
-                <div class="section-header">
-                    <h2>Persona</h2>
-                    <button id="add-persona-btn" class="btn-small" title="Add Custom Persona">+ Add Custom</button>
-                </div>
+                <h2>Persona</h2>
                 <div id="persona-grid" class="persona-grid"></div>
                 <div id="persona-info" class="persona-info"></div>
             </section>
-
-            <!-- Custom Persona Modal -->
-            <div id="persona-modal" class="modal" style="display:none">
-                <div class="modal-content">
-                    <h2 id="modal-title">Add Custom Persona</h2>
-                    <div class="form-group">
-                        <label>Name:</label>
-                        <input type="text" id="custom-name" placeholder="e.g., Friendly Agent">
-                    </div>
-                    <div class="form-group">
-                        <label>Local Name (台灣):</label>
-                        <input type="text" id="custom-local-name" placeholder="e.g., 親切服務員">
-                    </div>
-                    <div class="form-group">
-                        <label>Tone Instructions:</label>
-                        <textarea id="custom-tone" rows="3"
-                            placeholder="e.g., Warm and friendly tone. Speak naturally with gentle emphasis."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Recommended Voice:</label>
-                        <select id="custom-voice"></select>
-                    </div>
-                    <div class="modal-actions">
-                        <button id="save-persona-btn" class="btn-primary">Save Persona</button>
-                        <button id="cancel-persona-btn" class="btn-secondary">Cancel</button>
-                        <button id="delete-persona-btn" class="btn-danger" style="display:none">Delete</button>
-                    </div>
-                </div>
-            </div>
 
             <section class="text-input">
                 <h2>Text Input</h2>

@@ -76,23 +76,10 @@ async def generate_speech(request: GenerateRequest) -> GenerateResponse:
         # Build prompt with persona instructions
         prompt = request.text
         persona_name = "default"
-        tone_instructions = ""
-        
-        # Determine persona details
-        if request.persona_id:
-             if request.persona_id in personas:
-                persona = personas[request.persona_id]
-                persona_name = persona["name"]
-                tone_instructions = persona["tone_instructions"]
-             elif request.persona_id.startswith("custom_"):
-                 persona_name = "Custom Persona"
-        
-        # Override if explicit tone instructions provided (for custom personas)
-        if request.tone_instructions:
-             tone_instructions = request.tone_instructions
-        
-        if tone_instructions:
-            prompt = f"Read aloud in {tone_instructions}\n\n{request.text}"
+        if request.persona_id and request.persona_id in personas:
+            persona = personas[request.persona_id]
+            persona_name = persona["name"]
+            prompt = f"Read aloud in {persona['tone_instructions']}\n\n{request.text}"
         
         # Build content using types
         contents = [
@@ -151,11 +138,6 @@ async def generate_speech(request: GenerateRequest) -> GenerateResponse:
         # Save audio file
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         safe_persona_name = persona_name.replace(" ", "_")
-        
-        # Handle custom persona filenames
-        if request.persona_id and request.persona_id.startswith("custom_"):
-            safe_persona_name = f"Custom_{request.persona_id.split('_')[1]}"
-
         base_name = f"{timestamp}_{request.voice}_{safe_persona_name}"
         audio_path = OUTPUT_DIR / f"{base_name}.wav"
         metadata_path = OUTPUT_DIR / f"{base_name}.txt"
@@ -167,12 +149,12 @@ async def generate_speech(request: GenerateRequest) -> GenerateResponse:
         metadata = {
             "voice": request.voice,
             "persona": persona_name,
-            "persona_id": request.persona_id,
             "model": request.model.value,
             "text": request.text,
             "generated_at": timestamp,
-            "tone_instructions": tone_instructions
         }
+        if request.persona_id and request.persona_id in personas:
+            metadata["tone_instructions"] = personas[request.persona_id]["tone_instructions"]
         
         with open(metadata_path, "w", encoding="utf-8") as f:
             for k, v in metadata.items():
@@ -192,7 +174,6 @@ async def generate_batch(
     voices: List[str],
     text: str,
     persona_id: str | None,
-    tone_instructions: str | None,
     model: GeminiModel,
     concurrency: int = 5
 ) -> List[GenerateResponse]:
@@ -205,7 +186,6 @@ async def generate_batch(
                 voice=voice,
                 text=text,
                 persona_id=persona_id,
-                tone_instructions=tone_instructions,
                 model=model
             )
             return await generate_speech(request)

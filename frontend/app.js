@@ -39,121 +39,12 @@ async function loadData() {
             fetch('data/demo_texts.json').then(r => r.json())
         ]);
         voices = v.voices;
-
-        // Merge built-in personas with local custom personas
-        const localPersonas = JSON.parse(localStorage.getItem('custom_personas') || '[]');
-        personas = [...p.personas, ...localPersonas];
-
+        personas = p.personas;
         demoTexts = t;
         document.getElementById('text-content').value = demoTexts.insurance_demo;
-
-        // Populate modal voice select
-        const voiceSelect = document.getElementById('custom-voice');
-        voiceSelect.innerHTML = voices.map(v => `<option value="${v.name}">${v.name} (${v.characteristic})</option>`).join('');
-
     } catch (e) {
         console.error('Failed to load data:', e);
     }
-}
-
-// Custom Persona Logic
-let editingPersonaId = null;
-
-function saveCustomPersona() {
-    const name = document.getElementById('custom-name').value;
-    const localName = document.getElementById('custom-local-name').value;
-    const tone = document.getElementById('custom-tone').value;
-    const voice = document.getElementById('custom-voice').value;
-
-    if (!name || !tone) {
-        alert('Name and Tone Instructions are required');
-        return;
-    }
-
-    const newPersona = {
-        id: editingPersonaId || `custom_${Date.now()}`,
-        name: name,
-        local_name: localName,
-        tone_instructions: tone,
-        recommended_voice: voice,
-        is_custom: true
-    };
-
-    // Get current custom personas
-    let customPersonas = JSON.parse(localStorage.getItem('custom_personas') || '[]');
-
-    if (editingPersonaId) {
-        // Update existing
-        const idx = customPersonas.findIndex(p => p.id === editingPersonaId);
-        if (idx !== -1) customPersonas[idx] = newPersona;
-
-        // Update global list
-        const globalIdx = personas.findIndex(p => p.id === editingPersonaId);
-        if (globalIdx !== -1) personas[globalIdx] = newPersona;
-    } else {
-        // Add new
-        customPersonas.push(newPersona);
-        personas.push(newPersona);
-    }
-
-    localStorage.setItem('custom_personas', JSON.stringify(customPersonas));
-    renderPersonas();
-    closeModal();
-
-    // Select the new/edited persona
-    // Trigger click to select
-    setTimeout(() => {
-        const card = document.querySelector(`.persona-card[data-persona="${newPersona.id}"]`);
-        if (card) card.click();
-    }, 100);
-}
-
-function deleteCustomPersona() {
-    if (!editingPersonaId || !confirm('Delete this custom persona?')) return;
-
-    let customPersonas = JSON.parse(localStorage.getItem('custom_personas') || '[]');
-    customPersonas = customPersonas.filter(p => p.id !== editingPersonaId);
-    localStorage.setItem('custom_personas', JSON.stringify(customPersonas));
-
-    personas = personas.filter(p => p.id !== editingPersonaId);
-
-    if (selectedPersona === editingPersonaId) {
-        selectedPersona = null;
-        document.getElementById('persona-info').classList.remove('visible');
-    }
-
-    renderPersonas();
-    closeModal();
-}
-
-function openPersonaModal(persona = null) {
-    const modal = document.getElementById('persona-modal');
-    const title = document.getElementById('modal-title');
-    const delBtn = document.getElementById('delete-persona-btn');
-
-    if (persona) {
-        editingPersonaId = persona.id;
-        title.textContent = 'Edit Custom Persona';
-        document.getElementById('custom-name').value = persona.name;
-        document.getElementById('custom-local-name').value = persona.local_name;
-        document.getElementById('custom-tone').value = persona.tone_instructions;
-        document.getElementById('custom-voice').value = persona.recommended_voice;
-        delBtn.style.display = 'block';
-    } else {
-        editingPersonaId = null;
-        title.textContent = 'Add Custom Persona';
-        document.getElementById('custom-name').value = '';
-        document.getElementById('custom-local-name').value = '';
-        document.getElementById('custom-tone').value = '';
-        document.getElementById('custom-voice').value = voices[0]?.name || '';
-        delBtn.style.display = 'none';
-    }
-
-    modal.style.display = 'flex';
-}
-
-function closeModal() {
-    document.getElementById('persona-modal').style.display = 'none';
 }
 
 async function loadSessions() {
@@ -367,8 +258,7 @@ function renderVoices() {
 function renderPersonas() {
     const grid = document.getElementById('persona-grid');
     grid.innerHTML = personas.map(p => `
-        <div class="persona-card ${selectedPersona === p.id ? 'selected' : ''} ${p.is_custom ? 'custom' : ''}" data-persona="${p.id}">
-            ${p.is_custom ? `<button class="edit-btn" onclick="event.stopPropagation(); openPersonaModal(personas.find(x => x.id === '${p.id}'))">✏️</button>` : ''}
+        <div class="persona-card ${selectedPersona === p.id ? 'selected' : ''}" data-persona="${p.id}">
             <div class="persona-name">${p.name}</div>
             <div class="persona-local">${p.local_name}</div>
             <div class="persona-rec">Rec: ${p.recommended_voice}</div>
@@ -377,17 +267,6 @@ function renderPersonas() {
 }
 
 function setupEventListeners() {
-    // Modal events
-    document.getElementById('add-persona-btn').addEventListener('click', () => openPersonaModal());
-    document.getElementById('save-persona-btn').addEventListener('click', saveCustomPersona);
-    document.getElementById('cancel-persona-btn').addEventListener('click', closeModal);
-    document.getElementById('delete-persona-btn').addEventListener('click', deleteCustomPersona);
-
-    // Close modal on outside click
-    document.getElementById('persona-modal').addEventListener('click', e => {
-        if (e.target.id === 'persona-modal') closeModal();
-    });
-
     // Voice selection
     document.getElementById('voice-grid').addEventListener('click', e => {
         const card = e.target.closest('.voice-card');
@@ -500,13 +379,6 @@ async function generateSelected() {
     btn.disabled = true;
     btn.textContent = '⏳ Generating...';
 
-    // Get tone instructions if persona selected
-    let toneInstructions = null;
-    if (selectedPersona) {
-        const p = personas.find(x => x.id === selectedPersona);
-        if (p) toneInstructions = p.tone_instructions;
-    }
-
     try {
         const res = await fetch(`${API}/generate`, {
             method: 'POST',
@@ -515,7 +387,6 @@ async function generateSelected() {
                 voice: selectedVoice,
                 text: text,
                 persona_id: selectedPersona,
-                tone_instructions: toneInstructions,
                 model: model
             })
         });
@@ -546,13 +417,6 @@ async function generateBatch() {
     const model = document.getElementById('model-select').value;
     const voiceNames = voices.map(v => v.name);
 
-    // Get tone instructions if persona selected
-    let toneInstructions = null;
-    if (selectedPersona) {
-        const p = personas.find(x => x.id === selectedPersona);
-        if (p) toneInstructions = p.tone_instructions;
-    }
-
     const btn = document.getElementById('batch-btn');
     const progressEl = document.getElementById('progress');
     const progressBar = document.getElementById('progress-bar');
@@ -571,7 +435,6 @@ async function generateBatch() {
                 voices: voiceNames,
                 text: text,
                 persona_id: selectedPersona,
-                tone_instructions: toneInstructions,
                 model: model
             })
         });

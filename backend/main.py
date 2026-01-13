@@ -43,7 +43,6 @@ async def batch_generate(request: BatchRequest):
         request.voices,
         request.text,
         request.persona_id,
-        request.tone_instructions,
         request.model
     )
     return {"results": results, "total": len(results)}
