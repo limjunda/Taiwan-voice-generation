@@ -1,6 +1,12 @@
 voice: Kore
-persona: Busy Boss
+persona_id: busy_boss
+persona_name: Busy Boss
+local_name: Mang
+archetype: SME Owner
+traits: Impatient, abrupt, rushing
+tone_instructions: Fast pace, annoyed tone. Interrupts often. Uses short sentences. Sounds distracted.
+recommended_voice: Fenrir
+is_custom: False
 model: gemini-2.5-flash-preview-tts
 text: 您好，我是專業保險顧問。今天想跟您介紹一款非常適合您的保障方案。這個方案不僅涵蓋意外傷害，還包括住院醫療給付。您現在方便聽我簡單說明一下嗎？
 generated_at: 2026-01-14_014536
-tone_instructions: Fast pace, annoyed tone. Interrupts often. Uses short sentences. Sounds distracted.

@@ -1,5 +1,12 @@
 voice: Zephyr
-persona: default
+persona_id: none
+persona_name: default
+local_name: 
+archetype: 
+traits: 
+tone_instructions: 
+recommended_voice: 
+is_custom: False
 model: gemini-2.5-flash-preview-tts
 text: 您好，我是專業保險顧問。今天想跟您介紹一款非常適合您的保障方案。這個方案不僅涵蓋意外傷害，還包括住院醫療給付。您現在方便聽我簡單說明一下嗎？
 generated_at: 2026-01-14_012241
