@@ -17,6 +17,7 @@ class GenerateResponse(BaseModel):
     file_path: Optional[str] = None
     metadata_path: Optional[str] = None
     duration_seconds: Optional[float] = None
+    session_id: Optional[str] = None
     error: Optional[str] = None
 
 class BatchRequest(BaseModel):

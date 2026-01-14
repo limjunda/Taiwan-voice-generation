@@ -1,1 +1,58 @@
+# Environment
 .env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Generated audio files
+output/
+backend/output/
+sessions/
+backend/sessions/
+
+# Custom personas (persisted locally, not in repo)
+data/custom_personas.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Node (if using npm for any frontend tooling)
+node_modules/
+package-lock.json
+
+# Misc
+*.bak
+*.tmp

@@ -1,34 +1,154 @@
 {
   "voices": [
-    {"name": "Zephyr", "characteristic": "Bright"},
-    {"name": "Puck", "characteristic": "Upbeat"},
-    {"name": "Charon", "characteristic": "Informative"},
-    {"name": "Kore", "characteristic": "Firm"},
-    {"name": "Fenrir", "characteristic": "Excitable"},
-    {"name": "Leda", "characteristic": "Youthful"},
-    {"name": "Orus", "characteristic": "Firm"},
-    {"name": "Aoede", "characteristic": "Breezy"},
-    {"name": "Callirrhoe", "characteristic": "Easy-going"},
-    {"name": "Autonoe", "characteristic": "Bright"},
-    {"name": "Enceladus", "characteristic": "Breathy"},
-    {"name": "Iapetus", "characteristic": "Clear"},
-    {"name": "Umbriel", "characteristic": "Easy-going"},
-    {"name": "Algieba", "characteristic": "Smooth"},
-    {"name": "Despina", "characteristic": "Smooth"},
-    {"name": "Erinome", "characteristic": "Clear"},
-    {"name": "Algenib", "characteristic": "Gravelly"},
-    {"name": "Rasalgethi", "characteristic": "Informative"},
-    {"name": "Laomedeia", "characteristic": "Upbeat"},
-    {"name": "Achernar", "characteristic": "Soft"},
-    {"name": "Alnilam", "characteristic": "Firm"},
-    {"name": "Schedar", "characteristic": "Even"},
-    {"name": "Gacrux", "characteristic": "Mature"},
-    {"name": "Pulcherrima", "characteristic": "Forward"},
-    {"name": "Achird", "characteristic": "Friendly"},
-    {"name": "Zubenelgenubi", "characteristic": "Casual"},
-    {"name": "Vindemiatrix", "characteristic": "Gentle"},
-    {"name": "Sadachbia", "characteristic": "Lively"},
-    {"name": "Sadaltager", "characteristic": "Knowledgeable"},
-    {"name": "Sulafat", "characteristic": "Warm"}
+    {
+      "name": "Zephyr",
+      "characteristic": "Bright",
+      "gender": "female"
+    },
+    {
+      "name": "Puck",
+      "characteristic": "Upbeat",
+      "gender": "male"
+    },
+    {
+      "name": "Charon",
+      "characteristic": "Informative",
+      "gender": "male"
+    },
+    {
+      "name": "Kore",
+      "characteristic": "Firm",
+      "gender": "female"
+    },
+    {
+      "name": "Fenrir",
+      "characteristic": "Excitable",
+      "gender": "female"
+    },
+    {
+      "name": "Leda",
+      "characteristic": "Youthful",
+      "gender": "female"
+    },
+    {
+      "name": "Orus",
+      "characteristic": "Firm",
+      "gender": "male"
+    },
+    {
+      "name": "Aoede",
+      "characteristic": "Breezy",
+      "gender": "female"
+    },
+    {
+      "name": "Callirrhoe",
+      "characteristic": "Easy-going",
+      "gender": "female"
+    },
+    {
+      "name": "Autonoe",
+      "characteristic": "Bright",
+      "gender": "male"
+    },
+    {
+      "name": "Enceladus",
+      "characteristic": "Breathy",
+      "gender": "male"
+    },
+    {
+      "name": "Iapetus",
+      "characteristic": "Clear",
+      "gender": "male"
+    },
+    {
+      "name": "Umbriel",
+      "characteristic": "Easy-going",
+      "gender": "male"
+    },
+    {
+      "name": "Algieba",
+      "characteristic": "Smooth",
+      "gender": "male"
+    },
+    {
+      "name": "Despina",
+      "characteristic": "Smooth",
+      "gender": "female"
+    },
+    {
+      "name": "Erinome",
+      "characteristic": "Clear",
+      "gender": "female"
+    },
+    {
+      "name": "Algenib",
+      "characteristic": "Gravelly",
+      "gender": "female"
+    },
+    {
+      "name": "Rasalgethi",
+      "characteristic": "Informative",
+      "gender": "male"
+    },
+    {
+      "name": "Laomedeia",
+      "characteristic": "Upbeat",
+      "gender": "female"
+    },
+    {
+      "name": "Achernar",
+      "characteristic": "Soft",
+      "gender": "male"
+    },
+    {
+      "name": "Alnilam",
+      "characteristic": "Firm",
+      "gender": "male"
+    },
+    {
+      "name": "Schedar",
+      "characteristic": "Even",
+      "gender": "male"
+    },
+    {
+      "name": "Gacrux",
+      "characteristic": "Mature",
+      "gender": "male"
+    },
+    {
+      "name": "Pulcherrima",
+      "characteristic": "Forward",
+      "gender": "female"
+    },
+    {
+      "name": "Achird",
+      "characteristic": "Friendly",
+      "gender": "female"
+    },
+    {
+      "name": "Zubenelgenubi",
+      "characteristic": "Casual",
+      "gender": "male"
+    },
+    {
+      "name": "Vindemiatrix",
+      "characteristic": "Gentle",
+      "gender": "female"
+    },
+    {
+      "name": "Sadachbia",
+      "characteristic": "Lively",
+      "gender": "female"
+    },
+    {
+      "name": "Sadaltager",
+      "characteristic": "Knowledgeable",
+      "gender": "male"
+    },
+    {
+      "name": "Sulafat",
+      "characteristic": "Warm",
+      "gender": "female"
+    }
   ]
 }

@@ -3,12 +3,19 @@ import struct
 import asyncio
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from google.genai import types
 from auth import get_genai_client
-from data_manager import load_personas
+from data_manager import load_personas, load_custom_personas
 from models import GenerateRequest, GenerateResponse, GeminiModel
+from session_service import (
+    get_active_session_id, 
+    get_session_folder, 
+    add_file_to_session,
+    SESSIONS_DIR
+)
 
+# Legacy output for backward compatibility
 OUTPUT_DIR = Path("output")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -67,19 +74,47 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
     return header + audio_data
 
 
-async def generate_speech(request: GenerateRequest) -> GenerateResponse:
+def get_all_personas() -> dict:
+    """Get both built-in and custom personas."""
+    personas = load_personas()
+    try:
+        custom = load_custom_personas()
+        personas.update(custom)
+    except:
+        pass
+    return personas
+
+
+def get_output_folder(session_id: Optional[str] = None) -> Path:
+    """Get the output folder for the current or specified session."""
+    if session_id:
+        return get_session_folder(session_id)
+    
+    active_session_id = get_active_session_id()
+    if active_session_id:
+        return get_session_folder(active_session_id)
+    
+    # Fallback to legacy output folder
+    return OUTPUT_DIR
+
+
+async def generate_speech(request: GenerateRequest, session_id: Optional[str] = None) -> GenerateResponse:
     """Generate speech using Gemini TTS."""
     try:
         client = get_genai_client()
-        personas = load_personas()
+        personas = get_all_personas()
         
         # Build prompt with persona instructions
         prompt = request.text
+        persona_data = None
         persona_name = "default"
+        
         if request.persona_id and request.persona_id in personas:
-            persona = personas[request.persona_id]
-            persona_name = persona["name"]
-            prompt = f"Read aloud in {persona['tone_instructions']}\n\n{request.text}"
+            persona_data = personas[request.persona_id]
+            persona_name = persona_data.get("name", request.persona_id)
+            tone = persona_data.get("tone_instructions", "")
+            if tone:
+                prompt = f"Read aloud in {tone}\n\n{request.text}"
         
         # Build content using types
         contents = [
@@ -135,35 +170,56 @@ async def generate_speech(request: GenerateRequest) -> GenerateResponse:
         # Convert to WAV
         wav_data = convert_to_wav(audio_data, mime_type or "audio/L16;rate=24000")
         
+        # Get output folder (session folder or legacy)
+        output_folder = get_output_folder(session_id)
+        
         # Save audio file
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         safe_persona_name = persona_name.replace(" ", "_")
         base_name = f"{timestamp}_{request.voice}_{safe_persona_name}"
-        audio_path = OUTPUT_DIR / f"{base_name}.wav"
-        metadata_path = OUTPUT_DIR / f"{base_name}.txt"
+        audio_path = output_folder / f"{base_name}.wav"
+        metadata_path = output_folder / f"{base_name}.txt"
         
         with open(audio_path, "wb") as f:
             f.write(wav_data)
         
-        # Save metadata
-        metadata = {
-            "voice": request.voice,
-            "persona": persona_name,
-            "model": request.model.value,
-            "text": request.text,
-            "generated_at": timestamp,
-        }
-        if request.persona_id and request.persona_id in personas:
-            metadata["tone_instructions"] = personas[request.persona_id]["tone_instructions"]
+        # Save comprehensive metadata
+        metadata_lines = [
+            f"voice: {request.voice}",
+            f"persona_id: {request.persona_id or 'none'}",
+            f"persona_name: {persona_name}",
+        ]
+        
+        # Add full persona settings if available
+        if persona_data:
+            metadata_lines.extend([
+                f"local_name: {persona_data.get('local_name', '')}",
+                f"archetype: {persona_data.get('archetype', '')}",
+                f"traits: {persona_data.get('traits', '')}",
+                f"tone_instructions: {persona_data.get('tone_instructions', '')}",
+                f"recommended_voice: {persona_data.get('recommended_voice', '')}",
+                f"is_custom: {persona_data.get('is_custom', False)}",
+            ])
+        
+        metadata_lines.extend([
+            f"model: {request.model.value}",
+            f"text: {request.text}",
+            f"generated_at: {timestamp}",
+        ])
         
         with open(metadata_path, "w", encoding="utf-8") as f:
-            for k, v in metadata.items():
-                f.write(f"{k}: {v}\n")
+            f.write("\n".join(metadata_lines))
+        
+        # Update session if active
+        active_session = session_id or get_active_session_id()
+        if active_session:
+            add_file_to_session(active_session, f"{base_name}.wav", request.voice)
         
         return GenerateResponse(
             success=True,
             file_path=f"{base_name}.wav",
-            metadata_path=f"{base_name}.txt"
+            metadata_path=f"{base_name}.txt",
+            session_id=active_session
         )
         
     except Exception as e:
@@ -173,22 +229,22 @@ async def generate_speech(request: GenerateRequest) -> GenerateResponse:
 async def generate_batch(
     voices: List[str],
     text: str,
-    persona_id: str | None,
-    model: GeminiModel,
-    concurrency: int = 5
+    persona_id: str | None = None,
+    model: str = "gemini-2.5-flash-preview-tts",
+    session_id: Optional[str] = None
 ) -> List[GenerateResponse]:
-    """Generate speech for multiple voices in parallel."""
-    semaphore = asyncio.Semaphore(concurrency)
+    """Generate batch of audio files for multiple voices."""
+    semaphore = asyncio.Semaphore(5)
     
-    async def generate_with_limit(voice: str):
+    async def generate_one(voice: str) -> GenerateResponse:
         async with semaphore:
             request = GenerateRequest(
                 voice=voice,
                 text=text,
                 persona_id=persona_id,
-                model=model
+                model=GeminiModel(model)
             )
-            return await generate_speech(request)
+            return await generate_speech(request, session_id)
     
-    tasks = [generate_with_limit(v) for v in voices]
+    tasks = [generate_one(v) for v in voices]
     return await asyncio.gather(*tasks)

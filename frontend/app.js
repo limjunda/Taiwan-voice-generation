@@ -1,20 +1,23 @@
 const API = 'http://localhost:8000';
 let voices = [];
-let personas = [];
+let personas = {};
+let customPersonas = {};
 let selectedVoice = null;
 let selectedPersona = null;
 let demoTexts = {};
 let currentFilter = 'all';
-let currentSessionId = null;
-let currentSessionFiles = [];
+let currentGender = 'all';
+let activeSessionId = null;
 
 async function init() {
     await checkApiStatus();
     await loadData();
+    await loadAllPersonas();
     renderVoices();
     renderPersonas();
     await loadSessions();
     setupEventListeners();
+    populateVoiceDropdown();
 }
 
 async function checkApiStatus() {
@@ -33,13 +36,13 @@ async function checkApiStatus() {
 
 async function loadData() {
     try {
-        const [v, p, t] = await Promise.all([
-            fetch('data/voices.json').then(r => r.json()),
-            fetch('data/personas.json').then(r => r.json()),
+        // Cache-busting parameter to ensure fresh data
+        const timestamp = Date.now();
+        const [v, t] = await Promise.all([
+            fetch(`data/voices.json?v=${timestamp}`).then(r => r.json()),
             fetch('data/demo_texts.json').then(r => r.json())
         ]);
         voices = v.voices;
-        personas = p.personas;
         demoTexts = t;
         document.getElementById('text-content').value = demoTexts.insurance_demo;
     } catch (e) {
@@ -47,78 +50,79 @@ async function loadData() {
     }
 }
 
-async function loadSessions() {
+async function loadAllPersonas() {
     try {
-        const res = await fetch(`${API}/sessions`);
-        const sessions = await res.json();
-        const list = document.getElementById('session-list');
+        // Load built-in personas
+        const builtInRes = await fetch('data/personas.json');
+        const builtInData = await builtInRes.json();
+        personas = {};
+        builtInData.personas.forEach(p => personas[p.id] = p);
 
-        // Always load audio files for counts
-        const audioRes = await fetch(`${API}/audio`);
-        const audioFiles = await audioRes.json();
-        const favCount = audioFiles.filter(a => a.is_favorite).length;
+        // Load custom personas from API
+        const customRes = await fetch(`${API}/custom-personas`);
+        customPersonas = await customRes.json();
 
-        let sidebarHTML = '';
-
-        // Favorites section
-        sidebarHTML += `<div class="session-item" data-type="favorites">
-            <div class="session-name">⭐ Favorites</div>
-            <div class="session-meta">${favCount} file(s)</div>
-        </div>`;
-
-        // All Audio section
-        sidebarHTML += `<div class="session-item active" data-type="all-audio">
-            <div class="session-name">📂 All Audio</div>
-            <div class="session-meta">${audioFiles.length} file(s)</div>
-        </div>`;
-
-        // Add sessions if any
-        if (sessions.length > 0) {
-            sidebarHTML += sessions.map(s => `
-                <div class="session-item" data-id="${s.id}">
-                    <div class="session-name">${s.name}</div>
-                    <div class="session-meta">${s.voices_tested.length} voices</div>
-                </div>
-            `).join('');
-        }
-
-        list.innerHTML = sidebarHTML;
-
-        // Load all audio into results
-        clearResults();
-        audioFiles.forEach(audio => {
-            addResultRow(audio.voice, audio.persona, audio.filename, audio.is_favorite);
-        });
-
+        // Merge
+        Object.assign(personas, customPersonas);
     } catch (e) {
-        console.log('Failed to load sessions:', e);
-        await loadAllAudio();
+        console.error('Failed to load personas:', e);
     }
 }
 
-async function loadAllAudio() {
+async function loadSessions() {
+    try {
+        const res = await fetch(`${API}/sessions`);
+        const data = await res.json();
+        const sessions = data.sessions || [];
+        activeSessionId = data.active_session_id;
+
+        const list = document.getElementById('session-list');
+        let html = '';
+
+        // Favorites section
+        html += `<div class="session-item" data-type="favorites">
+            <div class="session-name">⭐ Favorites</div>
+            <div class="session-meta">Favorited files</div>
+        </div>`;
+
+        // All audio (legacy)
+        html += `<div class="session-item ${!activeSessionId ? 'active' : ''}" data-type="all-audio">
+            <div class="session-name">📂 All Audio</div>
+            <div class="session-meta">Legacy files</div>
+        </div>`;
+
+        // Sessions
+        sessions.forEach(s => {
+            const isActive = s.id === activeSessionId;
+            const fileCount = s.generated_files?.length || 0;
+            const date = new Date(s.created_at).toLocaleDateString();
+            html += `<div class="session-item ${isActive ? 'active' : ''}" data-id="${s.id}">
+                <div class="session-name">📁 ${s.name}</div>
+                <div class="session-meta">${fileCount} files • ${date}</div>
+            </div>`;
+        });
+
+        list.innerHTML = html;
+
+        // Load audio for active session
+        await loadAudio();
+    } catch (e) {
+        console.error('Failed to load sessions:', e);
+        await loadAudio();
+    }
+}
+
+async function loadAudio() {
     try {
         const res = await fetch(`${API}/audio`);
         const audioFiles = await res.json();
-        const favCount = audioFiles.filter(a => a.is_favorite).length;
-
-        const list = document.getElementById('session-list');
-        list.innerHTML = `
-            <div class="session-item" data-type="favorites">
-                <div class="session-name">⭐ Favorites</div>
-                <div class="session-meta">${favCount} file(s)</div>
-            </div>
-            <div class="session-item active" data-type="all-audio">
-                <div class="session-name">📂 All Audio</div>
-                <div class="session-meta">${audioFiles.length} file(s)</div>
-            </div>`;
 
         clearResults();
         audioFiles.forEach(audio => {
             addResultRow(audio.voice, audio.persona, audio.filename, audio.is_favorite);
         });
     } catch (e) {
-        console.log('Failed to load audio:', e);
+        console.error('Failed to load audio:', e);
     }
 }
 
@@ -132,124 +136,66 @@ async function loadFavorites() {
             addResultRow(audio.voice, audio.persona, audio.filename, true);
         });
 
-        // Update active state
-        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
-        const favEl = document.querySelector('.session-item[data-type="favorites"]');
-        if (favEl) favEl.classList.add('active');
+        updateSidebarActive('favorites');
     } catch (e) {
-        console.log('Failed to load favorites:', e);
+        console.error('Failed to load favorites:', e);
     }
 }
 
-async function loadSession(sessionId) {
+async function switchSession(sessionId) {
     try {
-        const res = await fetch(`${API}/sessions/${sessionId}`);
-        const session = await res.json();
-
-        currentSessionId = session.id;
-        currentSessionFiles = session.generated_files;
-
-        // Update UI
-        clearResults();
-        session.generated_files.forEach(filename => {
-            // Parse filename to get voice and persona
-            const parts = filename.replace('.wav', '').split('_');
-            const voice = parts.length > 2 ? parts[2] : 'unknown';
-            const persona = parts.length > 3 ? parts[3] : 'default';
-            addResultRow(voice, persona, filename);
-        });
-
-        // Highlight selected session
-        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
-        const sessionEl = document.querySelector(`.session-item[data-id="${sessionId}"]`);
-        if (sessionEl) sessionEl.classList.add('active');
-
-        // Restore text content if available
-        if (session.text_content) {
-            document.getElementById('text-content').value = session.text_content;
-        }
-
-        // Restore persona selection
-        if (session.persona_id) {
-            selectedPersona = session.persona_id;
-            renderPersonas();
-            const persona = personas.find(p => p.id === session.persona_id);
-            if (persona) {
-                const infoEl = document.getElementById('persona-info');
-                infoEl.textContent = `Tone: ${persona.tone_instructions}`;
-                infoEl.classList.add('visible');
-            }
-        }
-
+        await fetch(`${API}/sessions/active/${sessionId}`, { method: 'POST' });
+        activeSessionId = sessionId;
+        await loadAudio();
+        updateSidebarActive(sessionId);
     } catch (e) {
-        console.error('Failed to load session:', e);
+        console.error('Failed to switch session:', e);
     }
 }
 
-async function createNewSession() {
-    const text = document.getElementById('text-content').value;
-    const textType = document.querySelector('.tab.active')?.dataset.tab || 'custom';
-
+async function loadAllLegacyAudio() {
     try {
-        const res = await fetch(`${API}/sessions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: `Session ${new Date().toLocaleString()}`,
-                persona_id: selectedPersona,
-                text_type: textType,
-                text_content: text,
-                voices: [],
-                files: []
-            })
-        });
-        const session = await res.json();
-        currentSessionId = session.id;
-        currentSessionFiles = [];
+        // Load legacy audio files (from output/ folder, not session folders)
+        activeSessionId = null;
+        const res = await fetch(`${API}/audio?legacy=true`);
+        const audioFiles = await res.json();
 
         clearResults();
-        await loadSessions();
+        audioFiles.forEach(audio => {
+            addResultRow(audio.voice, audio.persona, audio.filename, audio.is_favorite);
+        });
 
-        return session;
+        updateSidebarActive('all-audio');
     } catch (e) {
-        console.error('Failed to create session:', e);
-        return null;
+        console.error('Failed to load audio:', e);
     }
 }
 
-async function updateCurrentSession(voice, filename) {
-    if (!currentSessionId) {
-        // Create new session first
-        await createNewSession();
-    }
-
-    if (currentSessionId) {
-        currentSessionFiles.push(filename);
-
-        try {
-            await fetch(`${API}/sessions/${currentSessionId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    voices: [voice],
-                    files: [filename]
-                })
-            });
-        } catch (e) {
-            console.log('Failed to update session:', e);
-        }
-    }
+function updateSidebarActive(id) {
+    document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
+    const target = id === 'favorites' || id === 'all-audio'
+        ? document.querySelector(`.session-item[data-type="${id}"]`)
+        : document.querySelector(`.session-item[data-id="${id}"]`);
+    if (target) target.classList.add('active');
 }
 
 function renderVoices() {
     const grid = document.getElementById('voice-grid');
-    const filteredVoices = currentFilter === 'all'
-        ? voices
-        : voices.filter(v => v.characteristic === currentFilter);
+    let filteredVoices = voices;
+
+    // Apply gender filter
+    if (currentGender !== 'all') {
+        filteredVoices = filteredVoices.filter(v => v.gender === currentGender);
+    }
+
+    // Apply characteristic filter
+    if (currentFilter !== 'all') {
+        filteredVoices = filteredVoices.filter(v => v.characteristic === currentFilter);
+    }
 
     grid.innerHTML = filteredVoices.map(v => `
-        <div class="voice-card ${selectedVoice === v.name ? 'selected' : ''}" data-voice="${v.name}" data-char="${v.characteristic}">
-            <div class="voice-name">${v.name}</div>
+        <div class="voice-card ${selectedVoice === v.name ? 'selected' : ''}" data-voice="${v.name}" data-char="${v.characteristic}" data-gender="${v.gender}">
+            <div class="voice-name">${v.gender === 'male' ? '♂' : '♀'} ${v.name}</div>
             <div class="voice-char">${v.characteristic}</div>
         </div>
     `).join('');
@@ -257,13 +203,25 @@ function renderVoices() {
 
 function renderPersonas() {
     const grid = document.getElementById('persona-grid');
-    grid.innerHTML = personas.map(p => `
-        <div class="persona-card ${selectedPersona === p.id ? 'selected' : ''}" data-persona="${p.id}">
-            <div class="persona-name">${p.name}</div>
-            <div class="persona-local">${p.local_name}</div>
-            <div class="persona-rec">Rec: ${p.recommended_voice}</div>
-        </div>
-    `).join('');
+    grid.innerHTML = Object.values(personas).map(p => {
+        const isCustom = p.is_custom ? 'custom' : '';
+        const isSelected = selectedPersona === p.id ? 'selected' : '';
+        return `
+            <div class="persona-card ${isCustom} ${isSelected}" data-persona="${p.id}">
+                <div class="persona-name">${p.name}</div>
+                <div class="persona-local">${p.local_name || ''}</div>
+                <div class="persona-rec">Rec: ${p.recommended_voice || '-'}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function populateVoiceDropdown() {
+    const select = document.getElementById('persona-voice');
+    select.innerHTML = '<option value="">Select a voice...</option>';
+    voices.forEach(v => {
+        select.innerHTML += `<option value="${v.name}">${v.name} (${v.characteristic})</option>`;
+    });
 }
 
 function setupEventListeners() {
@@ -278,13 +236,26 @@ function setupEventListeners() {
         }
     });
 
-    // Voice filtering
+    // Voice filtering (characteristic and gender)
     document.querySelector('.filter-bar').addEventListener('click', e => {
         const btn = e.target.closest('.filter-btn');
         if (btn) {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            currentFilter = btn.dataset.filter;
+            // Handle gender filter separately
+            if (btn.dataset.gender) {
+                // Toggle gender filter
+                document.querySelectorAll('.gender-btn').forEach(b => b.classList.remove('active'));
+                if (currentGender === btn.dataset.gender) {
+                    currentGender = 'all'; // Click again to clear
+                } else {
+                    btn.classList.add('active');
+                    currentGender = btn.dataset.gender;
+                }
+            } else {
+                // Handle characteristic filter
+                document.querySelectorAll('.filter-btn:not(.gender-btn)').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFilter = btn.dataset.filter;
+            }
             renderVoices();
         }
     });
@@ -297,12 +268,23 @@ function setupEventListeners() {
             card.classList.add('selected');
             selectedPersona = card.dataset.persona;
 
-            const persona = personas.find(p => p.id === selectedPersona);
-            const infoEl = document.getElementById('persona-info');
-            infoEl.textContent = `Tone: ${persona.tone_instructions}`;
-            infoEl.classList.add('visible');
+            const persona = personas[selectedPersona];
+            if (persona) {
+                const infoEl = document.getElementById('persona-info');
+                infoEl.textContent = `Tone: ${persona.tone_instructions}`;
+                infoEl.classList.add('visible');
+            }
 
             updateExportConfig();
+        }
+    });
+
+    // Double-click to edit custom persona
+    document.getElementById('persona-grid').addEventListener('dblclick', e => {
+        const card = e.target.closest('.persona-card.custom');
+        if (card) {
+            const personaId = card.dataset.persona;
+            openPersonaModal(personaId);
         }
     });
 
@@ -316,33 +298,29 @@ function setupEventListeners() {
             if (type === 'favorites') {
                 await loadFavorites();
             } else if (type === 'all-audio') {
-                await loadAllAudio();
+                await loadAllLegacyAudio();
             } else if (sessionId) {
-                await loadSession(sessionId);
+                await switchSession(sessionId);
             }
         }
     });
 
-    // Generate button
+    // Generate buttons
     document.getElementById('generate-btn').addEventListener('click', generateSelected);
     document.getElementById('batch-btn').addEventListener('click', generateBatch);
     document.getElementById('copy-config').addEventListener('click', copyConfig);
 
     // New session button
-    document.getElementById('new-session').addEventListener('click', async () => {
-        currentSessionId = null;
-        currentSessionFiles = [];
-        clearResults();
-        selectedVoice = null;
-        selectedPersona = null;
-        renderVoices();
-        renderPersonas();
-        document.getElementById('persona-info').classList.remove('visible');
-        document.getElementById('text-content').value = demoTexts.insurance_demo;
+    document.getElementById('new-session').addEventListener('click', createNewSession);
 
-        // Remove active state from sessions
-        document.querySelectorAll('.session-item').forEach(el => el.classList.remove('active'));
-    });
+    // Create persona button
+    document.getElementById('create-persona-btn').addEventListener('click', () => openPersonaModal());
+
+    // Persona form submit
+    document.getElementById('persona-form').addEventListener('submit', savePersona);
+
+    // Delete persona button
+    document.getElementById('delete-persona-btn').addEventListener('click', deletePersona);
 
     // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
@@ -356,10 +334,42 @@ function setupEventListeners() {
                 document.getElementById('text-content').value = demoTexts.test_phrases.join('\n');
             } else {
                 document.getElementById('text-content').value = '';
-                document.getElementById('text-content').placeholder = 'Enter custom text here...';
             }
         });
     });
+
+    // Audio slider
+    document.getElementById('audio-slider').addEventListener('input', (e) => {
+        if (currentAudio) {
+            currentAudio.currentTime = e.target.value;
+        }
+    });
+}
+
+async function createNewSession() {
+    const name = `Session ${new Date().toLocaleString()}`;
+    const text = document.getElementById('text-content').value;
+    const textType = document.querySelector('.tab.active')?.dataset.tab || 'demo';
+
+    try {
+        const res = await fetch(`${API}/sessions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                persona_id: selectedPersona,
+                text_type: textType,
+                text_content: text
+            })
+        });
+        const data = await res.json();
+        activeSessionId = data.id;
+
+        clearResults();
+        await loadSessions();
+    } catch (e) {
+        console.error('Failed to create session:', e);
+    }
 }
 
 async function generateSelected() {
@@ -385,16 +395,15 @@ async function generateSelected() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 voice: selectedVoice,
-                text: text,
+                text,
                 persona_id: selectedPersona,
-                model: model
+                model
             })
         });
         const data = await res.json();
 
         if (data.success) {
-            addResultRow(selectedVoice, selectedPersona, data.file_path);
-            // Refresh session list
+            addResultRow(selectedVoice, selectedPersona, data.file_path, false);
             await loadSessions();
         } else {
             alert('Error: ' + data.error);
@@ -433,9 +442,9 @@ async function generateBatch() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 voices: voiceNames,
-                text: text,
+                text,
                 persona_id: selectedPersona,
-                model: model
+                model
             })
         });
         const data = await res.json();
@@ -445,27 +454,23 @@ async function generateBatch() {
 
         data.results.forEach((r, i) => {
             if (r.success) {
-                addResultRow(voiceNames[i], selectedPersona, r.file_path);
+                addResultRow(voiceNames[i], selectedPersona, r.file_path, false);
             }
         });
 
-        // Refresh sessions
         await loadSessions();
-
     } catch (e) {
         alert('Failed to batch generate: ' + e.message);
     } finally {
         btn.disabled = false;
-        setTimeout(() => {
-            progressEl.style.display = 'none';
-        }, 2000);
+        setTimeout(() => progressEl.style.display = 'none', 2000);
     }
 }
 
 function addResultRow(voice, persona, filePath, isFavorite = false) {
     const tbody = document.querySelector('#results-table tbody');
     const row = document.createElement('tr');
-    const personaName = persona ? (personas.find(p => p.id === persona)?.name || persona) : 'default';
+    const personaName = persona ? (personas[persona]?.name || persona) : 'default';
     const filename = filePath.includes('/') ? filePath.split('/').pop() : filePath;
     const favClass = isFavorite ? 'favorited' : '';
 
@@ -480,7 +485,6 @@ function addResultRow(voice, persona, filePath, isFavorite = false) {
         </td>
     `;
 
-    // Row click to show metadata
     row.addEventListener('click', () => {
         document.querySelectorAll('#results-table tbody tr').forEach(r => r.classList.remove('selected'));
         row.classList.add('selected');
@@ -494,69 +498,16 @@ function clearResults() {
     document.querySelector('#results-table tbody').innerHTML = '';
 }
 
-async function toggleFavorite(btn, filename) {
-    const isFavorited = btn.classList.contains('favorited');
-
-    try {
-        if (isFavorited) {
-            await fetch(`${API}/favorites/${filename}`, { method: 'DELETE' });
-            btn.classList.remove('favorited');
-        } else {
-            await fetch(`${API}/favorites/${filename}`, { method: 'POST' });
-            btn.classList.add('favorited');
-        }
-
-        // Update sidebar counts
-        const audioRes = await fetch(`${API}/audio`);
-        const audioFiles = await audioRes.json();
-        const favCount = audioFiles.filter(a => a.is_favorite).length;
-
-        const favEl = document.querySelector('.session-item[data-type="favorites"] .session-meta');
-        if (favEl) favEl.textContent = `${favCount} file(s)`;
-    } catch (e) {
-        console.error('Failed to toggle favorite:', e);
-    }
-}
-
-function downloadFile(filename) {
-    const link = document.createElement('a');
-    link.href = `${API}/audio/${filename}`;
-    link.download = filename;
-    link.click();
-}
-
-function updateExportConfig() {
-    const config = {
-        voice: selectedVoice,
-        persona: selectedPersona,
-        model: document.getElementById('model-select').value,
-        recommended_for: selectedPersona ? personas.find(p => p.id === selectedPersona)?.name : null
-    };
-    document.getElementById('export-config').textContent = JSON.stringify(config, null, 2);
-}
-
-function copyConfig() {
-    const config = document.getElementById('export-config').textContent;
-    navigator.clipboard.writeText(config).then(() => {
-        const btn = document.getElementById('copy-config');
-        const originalText = btn.textContent;
-        btn.textContent = '✓ Copied!';
-        setTimeout(() => btn.textContent = originalText, 2000);
-    });
-}
-
 // Audio Player
 let currentAudio = null;
 let currentFilename = null;
 
 function playAudio(filename) {
-    // Stop current audio if playing different file
     if (currentAudio && currentFilename !== filename) {
         currentAudio.pause();
         currentAudio = null;
     }
 
-    // If same file, just play
     if (currentFilename === filename && currentAudio) {
         currentAudio.play();
         document.getElementById('play-pause-btn').textContent = '⏸';
@@ -566,16 +517,12 @@ function playAudio(filename) {
     currentFilename = filename;
     currentAudio = new Audio(`${API}/audio/${filename}`);
 
-    // Show player
-    const player = document.getElementById('audio-player');
-    player.style.display = 'block';
+    document.getElementById('audio-player').style.display = 'block';
 
-    // Update player info
     const parts = filename.replace('.wav', '').split('_');
     document.getElementById('player-voice').textContent = parts[2] || 'Unknown';
     document.getElementById('player-persona').textContent = parts.slice(3).join(' ') || 'default';
 
-    // Setup audio events
     currentAudio.addEventListener('loadedmetadata', () => {
         document.getElementById('audio-slider').max = currentAudio.duration;
         updateTimeDisplay();
@@ -590,7 +537,6 @@ function playAudio(filename) {
         document.getElementById('play-pause-btn').textContent = '▶';
     });
 
-    // Play
     currentAudio.play().catch(e => {
         console.error('Failed to play:', e);
         alert('Failed to play audio');
@@ -613,7 +559,6 @@ function togglePlayPause() {
 
 function updateTimeDisplay() {
     if (!currentAudio) return;
-
     const current = formatTime(currentAudio.currentTime);
     const total = formatTime(currentAudio.duration || 0);
     document.getElementById('audio-time').textContent = `${current} / ${total}`;
@@ -625,39 +570,43 @@ function formatTime(seconds) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Audio slider seek
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('audio-slider').addEventListener('input', (e) => {
-        if (currentAudio) {
-            currentAudio.currentTime = e.target.value;
-        }
-    });
-});
+async function toggleFavorite(btn, filename) {
+    const isFavorited = btn.classList.contains('favorited');
 
-// Metadata Panel
+    try {
+        if (isFavorited) {
+            await fetch(`${API}/favorites/${filename}`, { method: 'DELETE' });
+            btn.classList.remove('favorited');
+        } else {
+            await fetch(`${API}/favorites/${filename}`, { method: 'POST' });
+            btn.classList.add('favorited');
+        }
+    } catch (e) {
+        console.error('Failed to toggle favorite:', e);
+    }
+}
+
+function downloadFile(filename) {
+    const link = document.createElement('a');
+    link.href = `${API}/audio/${filename}`;
+    link.download = filename;
+    link.click();
+}
+
 async function showMetadata(filename) {
     try {
-        // Load metadata from .txt file via API
         const metaFilename = filename.replace('.wav', '.txt');
         const res = await fetch(`${API}/metadata/${metaFilename}`);
 
         if (res.ok) {
-            const text = await res.text();
-            document.getElementById('metadata-text').textContent = text;
+            document.getElementById('metadata-text').textContent = await res.text();
         } else {
-            // Fallback: parse from filename
             const parts = filename.replace('.wav', '').split('_');
             document.getElementById('metadata-text').textContent =
-                `Filename: ${filename}\n` +
-                `Generated: ${parts[0]}_${parts[1]}\n` +
-                `Voice: ${parts[2] || 'unknown'}\n` +
-                `Persona: ${parts.slice(3).join(' ') || 'default'}`;
+                `Filename: ${filename}\nVoice: ${parts[2] || 'unknown'}\nPersona: ${parts.slice(3).join(' ') || 'default'}`;
         }
 
         document.getElementById('metadata-panel').style.display = 'block';
-
-        // Highlight row
-        document.querySelectorAll('#results-table tbody tr').forEach(r => r.classList.remove('selected'));
     } catch (e) {
         console.error('Failed to load metadata:', e);
     }
@@ -667,5 +616,121 @@ function closeMetadata() {
     document.getElementById('metadata-panel').style.display = 'none';
 }
 
-// Initialize on load
+function updateExportConfig() {
+    const config = {
+        voice: selectedVoice,
+        persona: selectedPersona,
+        model: document.getElementById('model-select').value,
+        recommended_for: selectedPersona ? personas[selectedPersona]?.name : null
+    };
+    document.getElementById('export-config').textContent = JSON.stringify(config, null, 2);
+}
+
+function copyConfig() {
+    const config = document.getElementById('export-config').textContent;
+    navigator.clipboard.writeText(config).then(() => {
+        const btn = document.getElementById('copy-config');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => btn.textContent = originalText, 2000);
+    });
+}
+
+// Custom Persona Modal
+function openPersonaModal(personaId = null) {
+    const modal = document.getElementById('persona-modal');
+    const form = document.getElementById('persona-form');
+    const title = document.getElementById('modal-title');
+    const deleteBtn = document.getElementById('delete-persona-btn');
+
+    form.reset();
+
+    if (personaId && customPersonas[personaId]) {
+        const p = customPersonas[personaId];
+        title.textContent = 'Edit Custom Persona';
+        document.getElementById('persona-id').value = personaId;
+        document.getElementById('persona-name').value = p.name || '';
+        document.getElementById('persona-local-name').value = p.local_name || '';
+        document.getElementById('persona-archetype').value = p.archetype || '';
+        document.getElementById('persona-traits').value = p.traits || '';
+        document.getElementById('persona-tone').value = p.tone_instructions || '';
+        document.getElementById('persona-voice').value = p.recommended_voice || '';
+        deleteBtn.style.display = 'block';
+    } else {
+        title.textContent = 'Create Custom Persona';
+        document.getElementById('persona-id').value = '';
+        deleteBtn.style.display = 'none';
+    }
+
+    modal.style.display = 'flex';
+}
+
+function closePersonaModal() {
+    document.getElementById('persona-modal').style.display = 'none';
+}
+
+async function savePersona(e) {
+    e.preventDefault();
+
+    const personaId = document.getElementById('persona-id').value;
+    const data = {
+        id: personaId || null,
+        name: document.getElementById('persona-name').value,
+        local_name: document.getElementById('persona-local-name').value,
+        archetype: document.getElementById('persona-archetype').value,
+        traits: document.getElementById('persona-traits').value,
+        tone_instructions: document.getElementById('persona-tone').value,
+        recommended_voice: document.getElementById('persona-voice').value
+    };
+
+    try {
+        const method = personaId ? 'PUT' : 'POST';
+        const url = personaId ? `${API}/custom-personas/${personaId}` : `${API}/custom-personas`;
+
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (res.ok) {
+            closePersonaModal();
+            await loadAllPersonas();
+            renderPersonas();
+        } else {
+            alert('Failed to save persona');
+        }
+    } catch (e) {
+        console.error('Failed to save persona:', e);
+        alert('Failed to save persona');
+    }
+}
+
+async function deletePersona() {
+    const personaId = document.getElementById('persona-id').value;
+    if (!personaId) return;
+
+    if (!confirm('Are you sure you want to delete this persona?')) return;
+
+    try {
+        const res = await fetch(`${API}/custom-personas/${personaId}`, { method: 'DELETE' });
+
+        if (res.ok) {
+            closePersonaModal();
+            await loadAllPersonas();
+            renderPersonas();
+            if (selectedPersona === personaId) {
+                selectedPersona = null;
+                document.getElementById('persona-info').classList.remove('visible');
+            }
+        } else {
+            alert('Failed to delete persona');
+        }
+    } catch (e) {
+        console.error('Failed to delete persona:', e);
+        alert('Failed to delete persona');
+    }
+}
+
+// Initialize
 document.addEventListener('DOMContentLoaded', init);
