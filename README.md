@@ -23,13 +23,16 @@ cd Taiwan-voice-generation
 
 # Create virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
 ```
+
+**Activate virtual environment:**
+
+| Shell | Command |
+|-------|---------|
+| **PowerShell** | `.\venv\Scripts\Activate.ps1` |
+| **Git Bash** | `source venv/Scripts/activate` |
+| **CMD** | `venv\Scripts\activate.bat` |
+| **macOS/Linux** | `source venv/bin/activate` |
 
 ### 2. Install dependencies
 
